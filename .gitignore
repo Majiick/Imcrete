@@ -4,6 +4,8 @@
 # Additional VS
 *.VC.opendb
 *.VC.db
+*.vcxproj.filters
+*.vcxproj
 
 # User-specific files
 *.suo
