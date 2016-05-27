@@ -9,5 +9,4 @@ A C++ library that uses CImg library and ImageMagick to conceal images within ot
 - [ ] Color/bit depth manipulation for better quality.
 - [ ] Unhiding images.
 
-
-https://en.wikipedia.org/wiki/Steganography
+For examples and other info, visit the [wiki.](https://github.com/Majiick/Imcrete/wiki)
