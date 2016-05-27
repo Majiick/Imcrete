@@ -1,8 +1,6 @@
 A C++ library that uses CImg library and ImageMagick to conceal images within other images.
 
-To Do:
-
-### Solar System Exploration, 1950s – 1960s
+### To Do:
 
 - [ ] Multiple Image Hiding
 - [ ] Hiding strings within images
