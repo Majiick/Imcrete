@@ -1,5 +1,6 @@
 #include "stdafx.h"
 #include "CImg.h"
+#include <tclap/CmdLine.h>
 
 using namespace cimg_library;
 
@@ -92,10 +93,21 @@ enum class Match { Secret, Apparent };
 enum class Interpolation { NoneRawMem = -1, NoneBoundaryCondition, NearestNeighbour, MovingAverage, Linear, Grid, Cubic, Lanczos };
 
 int main(int argc, char *argv[]) {
-	Match match = Match::Apparent;
+	/////////////////////////////
+	try {
+		TCLAP::CmdLine cmd("Command description message", ' ', "0.1");
+		TCLAP::ValueArg<std::string> secretArg("s", "secret", "Secret image to encode.", true, "homer", "string", cmd); //Flag, Name, Desc, Req, T val?, const std::string& typeDesc
 
-	CImg<unsigned char> secret("C:\\Users\\Ecoste\\Documents\\Visual Studio 2015\\Projects\\Imcrete\\Debug\\bigSunset.png");
-	CImg<unsigned char> apparent("C:\\Users\\Ecoste\\Documents\\Visual Studio 2015\\Projects\\Imcrete\\Debug\\animu.png");
+		cmd.parse(argc, argv);
+	} catch (TCLAP::ArgException &e) {
+		std::cout << "Exception thrown on argument parsing.";
+	}
+
+	/////////////////////////////
+	Match match = Match::Secret;
+
+	CImg<uint8_t> secret("C:\\Users\\Ecoste\\Source\\Repos\\Imcrete\\cat.jpg");
+	CImg<uint8_t> apparent("C:\\Users\\Ecoste\\Source\\Repos\\Imcrete\\nebula.jpg");
 
 
 	if (!secret.is_sameXYZC(apparent)) {
@@ -126,16 +138,16 @@ int main(int argc, char *argv[]) {
 
 	//std::cout << secret.size() << " " << apparent.size();
 
-	encrypt<unsigned char>(secret, apparent);
+	encrypt<uint8_t>(secret, apparent);
 
-	CImg<unsigned char> hidden("Hidden.png");
-	decrypt<unsigned char>(hidden);
+	CImg<uint8_t> hidden("Hidden.png");
+	decrypt<uint8_t>(hidden);
 
-	CImg<double> test("Hidden.png");
-	test[200] = std::numeric_limits<double>::max();
+	//CImg<double> test("Hidden.png");
+	//test[200] = std::numeric_limits<double>::max();
 	//test.normalize(0, 2 ^ 32);
-	test *= 100;
-	test.save("resavedTestHidden.png");
+	//test *= 100;
+	//test.save("resavedTestHidden.png");
 
 	//std::cout << bit_depth<unsigned char>(apparent);
 
