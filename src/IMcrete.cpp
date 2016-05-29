@@ -1,126 +1,113 @@
-#include "stdafx.h"
+#include <stdio.h>
+#include <stdexcept>
+#include <iostream>
+#include <tchar.h>
+#include <intrin.h>
+#include <bitset>
 #include "CImg.h"
 #include <tclap/CmdLine.h>
+#include <map>
+#include <vector>
+#include <memory>
 
 using namespace cimg_library;
+using std::string;
 
 template<typename T>
 void encrypt(CImg<T> apparent, CImg<T> secret) {
-	int i = 0;
-	/*
-	cimg_forX(secret, x) {
-	cimg_forY(secret, y) {
-	cimg_forZ(secret, z) {
-	unsigned char r;
-	r = apparent.atXYZ(x, y, z) & 0b11110000; //Clear last 4 bits of apparent.jjksasa
-	r = r | (secret.atXYZ(x, y, z) >> 4); //Set last 4 bits of apparent with the msb 4 bits of secret.
-
-
-	if (x > 498) {
-	std::bitset<8> b((secret.atXYZ(x, y, z)));
-	std::cout << x << " " << y << " " << z << " " << b << std::endl;
+	if (!apparent.containsXYZC(secret.width()-1, secret.height()-1, secret.depth()-1, secret.spectrum()-1)) { //Check that secret is smaller than apparent.
+		throw std::invalid_argument("Secret is out of bounds of apparent.");
 	}
-
-
-	secret.atXYZ(x, y, z) = r;
-
-	i++;
-	}
-	}
-	}
-	*/
 
 	cimg_forXYZC(apparent, x, y, z, v) {
-		unsigned char r;
-		r = apparent.atXYZC(x, y, z, v) & 0b11110000; //Clear last 4 bits of apparent.
-		r = r | (secret.atXYZC(x, y, z, v) >> 4); //Set last 4 bits of apparent with the msb 4 bits of secret.
-
-
-		if (x > 498) {
-			std::bitset<8> b((secret.atXYZC(x, y, z, v)));
-			//std::cout << "x: " << x << " y: " << y << " z: " << z << " v: "  << v << " -- " << b << std::endl;
-		}
-
-
-		secret.atXYZC(x, y, z, v) = r;
-
-		i++;
+		//Clear last 4 bits of apparent and or them with the first 4 bits of secret.
+		apparent.atXYZC(x, y, z, v) = (apparent.atXYZC(x, y, z, v) & 0xF0) | (secret.atXYZC(x, y, z, v) >> 4);
 	}
-	std::cout << std::endl << "pixels = " << i;
 
-	/*
-	i = 0;
-	cimg_for(apparent, ptr, T) {
-	//a &= 0xF0| (b>>4);
-	unsigned char r;
-	//std::bitset<8> x(*ptr);
-	//std::cout << x << std::endl;
-	r = *ptr & 0b11110000; //Clear last 4 bits of apparent.
-
-	try {
-	//std::cout << i << std::endl;
-	r = r | (secret[i] >> 4); //Set last 4 bits of apparent with the msb 4 bits of secret.
-	}
-	catch (int e) {
-	//std::cout << e;
-	}
-	secret[i] = r;
-	i++;
-	}*/
-	secret.save("Hidden.png");
+	apparent.save("Hidden.png");
 }
 
 template<typename T>
-void decrypt(CImg<T> img) {
-	/*
-	int i = 0;
-	cimg_for(img, ptr, T) {
-	*ptr = _rotr8(*ptr, 4);
-	}*/
-
-	img.ror(4);
+void rotateDecrypt(CImg<T> img, int rotateKey) {
+	img.ror(rotateKey);
 
 	img.save("Unhidden.png");
 }
 
-template<typename T>
-int bit_depth(CImg<T> img) {
-	printf(" size: %d,\n width: %d,\n height: %d,\n depth: %d,\n spectrum: %d,\n", img.size(), img.width(), img.height(), img.depth(), img.spectrum());
-	return img.size() / (img.size() / img.spectrum()) * sizeof(T) * 8;
-}
 
-enum class Match { Secret, Apparent };
+enum class MatchQuality { Secret, Apparent };
 enum class Interpolation { NoneRawMem = -1, NoneBoundaryCondition, NearestNeighbour, MovingAverage, Linear, Grid, Cubic, Lanczos };
 
-int main(int argc, char *argv[]) {
-	/////////////////////////////
+//All argument parsing/accepting/whatever is done here and returned in an argMap<"arg", "value">.
+//Maybe would be easier done using an unsafe cast on cmd.getArgList() or something.
+std::map<string, string> parseCMD(int argc, char *argv[]) {
 	try {
-		TCLAP::CmdLine cmd("Command description message", ' ', "0.1");
-		TCLAP::ValueArg<std::string> secretArg("s", "secret", "Secret image to encode.", true, "homer", "string", cmd); //Flag, Name, Desc, Req, T val?, const std::string& typeDesc
+		TCLAP::CmdLine cmd("An Image Steganography tool.", ' ', "0.1");
+
+		std::vector<std::unique_ptr<TCLAP::ValueArg<string>> > args{};
+		args.push_back(std::make_unique<TCLAP::ValueArg<string>>("s", "secret", "Secret image to hide into apparent.", true, "", "string", cmd));
+		args.push_back(std::make_unique<TCLAP::ValueArg<string>>("a", "apparent", "Apparent image to hide secret within.", true, "", "string", cmd));
+		args.push_back(std::make_unique<TCLAP::ValueArg<string>>("o", "output", "Output image.", false, "Hidden.png", "string", cmd));
+		args.push_back(std::make_unique<TCLAP::ValueArg<string>>("m", "matchdimensions", "Which input image should all other input images match the dimension of? No resizing if not specified.", false, "", "string", cmd));
+
+		TCLAP::SwitchArg reverseSwitch("r", "resize", "Print name backwards", cmd, false);
+
+		std::map<string, string> argMap;
+
+		//2nd way
+		for (TCLAP::ArgListIterator it = cmd.getArgList().begin(); it != cmd.getArgList().end(); it++) {
+			std::cout << (*it)->getName() << std::endl;
+
+			TCLAP::ValueArg<string>* valArg = dynamic_cast<TCLAP::ValueArg<string>*>(*it);
+			TCLAP::SwitchArg* switchArg = dynamic_cast<TCLAP::SwitchArg*>(*it);
+			
+			if (valArg) {
+				argMap[(*it)->getName()] = valArg->getValue();
+			}
+			else if (switchArg) {
+				argMap[(*it)->getName()] = switchArg->getValue();
+			}
+		}
 
 		cmd.parse(argc, argv);
-	} catch (TCLAP::ArgException &e) {
-		std::cout << "Exception thrown on argument parsing.";
+
+		//First Way
+		//std::for_each(args.begin(), args.end(), [&argMap](std::unique_ptr<TCLAP::ValueArg<string>>& arg) {argMap[arg->getName()] = arg->getValue(); });
+
+		std::cout << argMap["secret"] << argMap["apparent"] << argMap["output"];
+		getchar();
+
+		return argMap;
 	}
+	catch (TCLAP::ArgException &e) {
+		std::cerr << "error: " << e.error() << " for arg " << e.argId() << std::endl;
+		throw; //Does this need a rethrow?
+	}
+}
 
-	/////////////////////////////
-	Match match = Match::Secret;
+int main(int argc, char *argv[]) {
+	typedef uint16_t TTYPE;
 
-	CImg<uint8_t> secret("C:\\Users\\Ecoste\\Source\\Repos\\Imcrete\\cat.jpg");
-	CImg<uint8_t> apparent("C:\\Users\\Ecoste\\Source\\Repos\\Imcrete\\nebula.jpg");
+	auto args = parseCMD(argc, argv);
+
+
+	MatchQuality match = MatchQuality::Secret;
+
+	CImg<TTYPE> secret("C:\\Users\\Ecoste\\Source\\Repos\\Imcrete\\cat.jpg");
+	CImg<TTYPE> apparent("C:\\Users\\Ecoste\\Source\\Repos\\Imcrete\\nebula.jpg");
 
 
 	if (!secret.is_sameXYZC(apparent)) {
 		std::cout << "Image width, height, depth or spectrum doesn't match. Resizing." << std::endl;
 
 		switch (match) {
-		case Match::Secret:
+		case MatchQuality::Secret:
 			std::cout << "Resizing apparent to secret." << std::endl;
 
 			apparent.resize(secret, (int)Interpolation::NearestNeighbour);
 			break;
 
-		case Match::Apparent:
+		case MatchQuality::Apparent:
 			std::cout << "Resizing secret to apparent." << std::endl;
 			secret.resize(apparent, (int)Interpolation::NearestNeighbour);
 			break;
@@ -134,14 +121,12 @@ int main(int argc, char *argv[]) {
 		i++;
 	}
 
-	std::cout << bit_depth<unsigned char>(apparent) << "pixels: " << i;
-
 	//std::cout << secret.size() << " " << apparent.size();
 
-	encrypt<uint8_t>(secret, apparent);
+	encrypt<TTYPE>(secret, apparent);
 
-	CImg<uint8_t> hidden("Hidden.png");
-	decrypt<uint8_t>(hidden);
+	CImg<TTYPE> hidden("Hidden.png");
+	rotateDecrypt<TTYPE>(hidden, 4);
 
 	//CImg<double> test("Hidden.png");
 	//test[200] = std::numeric_limits<double>::max();
