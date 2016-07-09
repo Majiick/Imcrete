@@ -31,7 +31,7 @@ std::map<string, string> parseCMD(int argc, char *argv[]) {
 		TCLAP::ValueArg<string> output("o", "output", "Output image.", false, "unhidden.png", "string", cmd);
 		TCLAP::ValueArg<string> key("k", "key", "Rotational key.", false, "8", "integer", cmd);
 		TCLAP::ValueArg<string> apparent("a", "apparent", "Input apparent encrypted image.", false, "8", "integer", cmd);
-		TCLAP::SwitchArg signature("s", "signature", "Embed the rotational key inside the image?", cmd, false);
+		TCLAP::SwitchArg signature("s", "signature", "Use a signature that is embedded within the image?", cmd, false);
 
 		cmd.parse(argc, argv);
 
